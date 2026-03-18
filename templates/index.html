@@ -166,7 +166,7 @@
             </tr>
           </thead>
           <tbody id="sm-items-body">
-            {% for desc, qty, price in sm.items %}
+            {% for desc, qty, price in sm['items'] %}
             <tr>
               <td><input type="text" name="item_desc_{{ loop.index0 }}" value="{{ desc }}"></td>
               <td><input type="number" name="item_qty_{{ loop.index0 }}"   value="{{ qty }}" min="0" step="1"></td>
