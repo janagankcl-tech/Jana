@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Invoice Generator</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
+  .header { background: #1F3864; color: white; padding: 20px 32px;
+            display: flex; align-items: center; gap: 12px; }
+  .header h1 { font-size: 1.4rem; font-weight: 600; }
+  .header span { opacity: 0.6; font-size: 0.9rem; }
+  .tabs { display: flex; gap: 0; padding: 0 32px; background: #1F3864; }
+  .tab-btn { padding: 10px 28px; background: none; border: none; color: rgba(255,255,255,0.65);
+             font-size: 0.95rem; cursor: pointer; border-bottom: 3px solid transparent;
+             transition: all 0.15s; }
+  .tab-btn:hover { color: white; }
+  .tab-btn.active { color: white; border-bottom-color: #F2C94C; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .container { max-width: 860px; margin: 32px auto; padding: 0 16px; }
+  .card { background: white; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+          margin-bottom: 20px; overflow: hidden; }
+  .card-header { background: #f7f8fa; padding: 14px 20px; border-bottom: 1px solid #e8eaed;
+                 font-weight: 600; font-size: 0.9rem; color: #555; text-transform: uppercase;
+                 letter-spacing: 0.05em; }
+  .card-body { padding: 20px; }
+  .row { display: grid; gap: 16px; margin-bottom: 16px; }
+  .row.cols-2 { grid-template-columns: 1fr 1fr; }
+  .row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .row.cols-4 { grid-template-columns: 2fr 1fr 1fr 32px; }
+  label { display: block; font-size: 0.82rem; font-weight: 600; color: #555;
+          margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.04em; }
+  input[type="text"], input[type="number"], textarea, select {
+    width: 100%; padding: 8px 11px; border: 1px solid #d0d5dd;
+    border-radius: 6px; font-size: 0.93rem; color: #1a1a2e;
+    transition: border-color 0.15s; }
+  input:focus, textarea:focus, select:focus {
+    outline: none; border-color: #2F5496; box-shadow: 0 0 0 3px rgba(47,84,150,0.1); }
+  textarea { resize: vertical; min-height: 60px; }
+  .items-table { width: 100%; border-collapse: collapse; }
+  .items-table th { text-align: left; font-size: 0.78rem; font-weight: 600;
+                    color: #888; text-transform: uppercase; padding: 0 6px 8px; }
+  .items-table td { padding: 4px 6px; vertical-align: middle; }
+  .items-table td:last-child { padding-left: 0; }
+  .btn-remove { background: none; border: none; color: #ccc; cursor: pointer;
+                font-size: 1.1rem; line-height: 1; padding: 4px;
+                transition: color 0.15s; }
+  .btn-remove:hover { color: #e53935; }
+  .btn-add { background: none; border: 1px dashed #2F5496; color: #2F5496;
+             border-radius: 6px; padding: 7px 14px; font-size: 0.85rem;
+             cursor: pointer; transition: all 0.15s; margin-top: 8px; }
+  .btn-add:hover { background: #f0f4ff; }
+  .generate-btn { display: block; width: 100%; padding: 13px;
+                  background: #1F3864; color: white; border: none;
+                  border-radius: 8px; font-size: 1rem; font-weight: 600;
+                  cursor: pointer; transition: background 0.15s; margin-top: 8px; }
+  .generate-btn:hover { background: #2F5496; }
+  .generate-btn:active { background: #163060; }
+  .note { font-size: 0.82rem; color: #888; margin-top: 6px; }
+  @media (max-width: 600px) {
+    .row.cols-2, .row.cols-3 { grid-template-columns: 1fr; }
+    .row.cols-4 { grid-template-columns: 1fr 60px 70px 32px; }
+    .container { margin: 16px auto; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Invoice Generator</h1>
+  <span>Fill in the form and click Generate to download your Excel file</span>
+</div>
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('sm')">StrongMinds Invoice</button>
+  <button class="tab-btn" onclick="switchTab('au')">Audere Time Report</button>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     SHARED: Personal / Bank Details (hidden, passed with each form)
+     ═══════════════════════════════════════════ -->
+<template id="personal-fields-sm">
+  <input type="hidden" name="my_name"     value="{{ my_name }}">
+  <input type="hidden" name="my_address"  value="{{ my_address }}">
+  <input type="hidden" name="my_email"    value="{{ my_email }}">
+  <input type="hidden" name="bank_details" value="{{ bank_details }}">
+</template>
+<template id="personal-fields-au">
+  <input type="hidden" name="my_name"     value="{{ my_name }}">
+  <input type="hidden" name="my_address"  value="{{ my_address }}">
+  <input type="hidden" name="my_email"    value="{{ my_email }}">
+  <input type="hidden" name="bank_details" value="{{ bank_details }}">
+</template>
+
+<!-- ═══════════════════════════════════════════
+     TAB 1 — StrongMinds Invoice
+     ═══════════════════════════════════════════ -->
+<div id="tab-sm" class="tab-content active">
+<div class="container">
+
+  <form method="POST" action="/generate/strongminds" id="sm-form">
+    <!-- personal fields injected by JS -->
+
+    <div class="card">
+      <div class="card-header">Invoice Details</div>
+      <div class="card-body">
+        <div class="row cols-3">
+          <div>
+            <label>Invoice Number</label>
+            <input type="text" name="invoice_number" value="{{ sm.invoice_number }}">
+          </div>
+          <div>
+            <label>Date</label>
+            <input type="text" name="inv_date" value="{{ sm.date }}">
+          </div>
+          <div>
+            <label>Payment Terms</label>
+            <input type="text" name="due" value="{{ sm.due }}">
+          </div>
+        </div>
+        <div class="row cols-3">
+          <div>
+            <label>Currency</label>
+            <select name="currency">
+              <option value="USD" {% if sm.currency == 'USD' %}selected{% endif %}>USD</option>
+              <option value="GBP" {% if sm.currency == 'GBP' %}selected{% endif %}>GBP</option>
+              <option value="EUR" {% if sm.currency == 'EUR' %}selected{% endif %}>EUR</option>
+            </select>
+          </div>
+          <div>
+            <label>PO Number <span style="font-weight:400;text-transform:none">(optional)</span></label>
+            <input type="text" name="po_number" value="{{ sm.po_number }}">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Bill To</div>
+      <div class="card-body">
+        <div class="row cols-2">
+          <div>
+            <label>Organisation / Address</label>
+            <textarea name="bill_to">{{ sm.bill_to }}</textarea>
+          </div>
+          <div>
+            <label>Contact Name</label>
+            <input type="text" name="contact" value="{{ sm.contact }}">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Line Items</div>
+      <div class="card-body">
+        <table class="items-table" id="sm-items">
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th style="width:70px">Qty</th>
+              <th style="width:110px">Unit Price</th>
+              <th style="width:32px"></th>
+            </tr>
+          </thead>
+          <tbody id="sm-items-body">
+            {% for desc, qty, price in sm.items %}
+            <tr>
+              <td><input type="text" name="item_desc_{{ loop.index0 }}" value="{{ desc }}"></td>
+              <td><input type="number" name="item_qty_{{ loop.index0 }}"   value="{{ qty }}" min="0" step="1"></td>
+              <td><input type="number" name="item_price_{{ loop.index0 }}" value="{{ price }}" min="0" step="0.01"></td>
+              <td><button type="button" class="btn-remove" onclick="removeRow(this)">&#x2715;</button></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <button type="button" class="btn-add" onclick="addSmRow()">+ Add row</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Notes</div>
+      <div class="card-body">
+        <textarea name="notes">{{ sm.notes }}</textarea>
+        <p class="note">Appears at the bottom of the invoice. Leave blank to omit.</p>
+      </div>
+    </div>
+
+    <button type="submit" class="generate-btn">Generate &amp; Download Invoice</button>
+  </form>
+
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     TAB 2 — Audere Time Report
+     ═══════════════════════════════════════════ -->
+<div id="tab-au" class="tab-content">
+<div class="container">
+
+  <form method="POST" action="/generate/audere" id="au-form">
+    <!-- personal fields injected by JS -->
+
+    <div class="card">
+      <div class="card-header">Reporting Period</div>
+      <div class="card-body">
+        <div class="row cols-3">
+          <div>
+            <label>Period Start</label>
+            <input type="text" name="date_period_start" value="{{ au.date_period_start }}" placeholder="DD/MM/YYYY">
+          </div>
+          <div>
+            <label>Period End</label>
+            <input type="text" name="date_period_end" value="{{ au.date_period_end }}" placeholder="DD/MM/YYYY">
+          </div>
+          <div>
+            <label>Period Note</label>
+            <input type="text" name="period_note" value="{{ au.period_note }}">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Hours by Program</div>
+      <div class="card-body">
+        <table class="items-table" id="au-items">
+          <thead>
+            <tr>
+              <th>Program</th>
+              <th style="width:90px">Hours</th>
+              <th style="width:110px">Hourly Rate ($)</th>
+              <th style="width:32px"></th>
+            </tr>
+          </thead>
+          <tbody id="au-items-body">
+            {% for program, hours, rate in au.rows %}
+            <tr>
+              <td><input type="text"   name="program_{{ loop.index0 }}" value="{{ program }}"></td>
+              <td><input type="number" name="hours_{{ loop.index0 }}"   value="{{ hours if hours else '' }}" min="0" step="1" placeholder="—"></td>
+              <td><input type="number" name="rate_{{ loop.index0 }}"    value="{{ rate if rate else '' }}"  min="0" step="1" placeholder="—"></td>
+              <td><button type="button" class="btn-remove" onclick="removeRow(this)">&#x2715;</button></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <button type="button" class="btn-add" onclick="addAuRow()">+ Add row</button>
+        <p class="note">Leave Hours or Rate blank to show as empty in the spreadsheet.</p>
+      </div>
+    </div>
+
+    <button type="submit" class="generate-btn">Generate &amp; Download Time Report</button>
+  </form>
+
+</div>
+</div>
+
+<script>
+// ── Tab switching ──
+function switchTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ── Inject personal/bank fields into each form before submit ──
+function injectHiddenFields(form, templateId) {
+  const tpl = document.getElementById(templateId);
+  const clone = tpl.content.cloneNode(true);
+  form.appendChild(clone);
+}
+document.getElementById('sm-form').addEventListener('submit', function() {
+  injectHiddenFields(this, 'personal-fields-sm');
+});
+document.getElementById('au-form').addEventListener('submit', function() {
+  injectHiddenFields(this, 'personal-fields-au');
+});
+
+// ── Remove row ──
+function removeRow(btn) {
+  btn.closest('tr').remove();
+  renumberRows('sm-items-body', ['item_desc_', 'item_qty_', 'item_price_']);
+  renumberRows('au-items-body', ['program_', 'hours_', 'rate_']);
+}
+
+function renumberRows(tbodyId, prefixes) {
+  const rows = document.getElementById(tbodyId).querySelectorAll('tr');
+  rows.forEach((tr, i) => {
+    const inputs = tr.querySelectorAll('input');
+    inputs.forEach((inp, j) => {
+      if (prefixes[j] !== undefined) inp.name = prefixes[j] + i;
+    });
+  });
+}
+
+// ── Add StrongMinds row ──
+function addSmRow() {
+  const tbody = document.getElementById('sm-items-body');
+  const idx = tbody.querySelectorAll('tr').length;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text"   name="item_desc_${idx}"  value=""></td>
+    <td><input type="number" name="item_qty_${idx}"   value="1" min="0" step="1"></td>
+    <td><input type="number" name="item_price_${idx}" value="0" min="0" step="0.01"></td>
+    <td><button type="button" class="btn-remove" onclick="removeRow(this)">&#x2715;</button></td>`;
+  tbody.appendChild(tr);
+  tr.querySelector('input').focus();
+}
+
+// ── Add Audere row ──
+function addAuRow() {
+  const tbody = document.getElementById('au-items-body');
+  const idx = tbody.querySelectorAll('tr').length;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text"   name="program_${idx}" value=""></td>
+    <td><input type="number" name="hours_${idx}"   value="" min="0" step="1" placeholder="—"></td>
+    <td><input type="number" name="rate_${idx}"    value="" min="0" step="1" placeholder="—"></td>
+    <td><button type="button" class="btn-remove" onclick="removeRow(this)">&#x2715;</button></td>`;
+  tbody.appendChild(tr);
+  tr.querySelector('input').focus();
+}
+</script>
+</body>
+</html>

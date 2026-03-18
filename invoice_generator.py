@@ -6,7 +6,7 @@ Usage:
 Edit the CONFIG section below to set your details and invoice data.
 """
 import sys
-from datetime import date, timedelta
+from datetime import date
 from openpyxl import Workbook
 from openpyxl.styles import (
     Font, PatternFill, Alignment, Border, Side, numbers
@@ -88,7 +88,14 @@ def row_height(ws, row, h):
 # ─────────────────────────────────────────────
 # StrongMinds Invoice
 # ─────────────────────────────────────────────
-def build_strongminds():
+def build_strongminds(my_name=None, my_address=None, my_email=None,
+                      bank_details=None, sm_data=None, output_dir="."):
+    my_name      = my_name      or MY_NAME
+    my_address   = my_address   or MY_ADDRESS
+    my_email     = my_email     or MY_EMAIL
+    bank_details = bank_details or BANK_DETAILS
+    sm           = sm_data      or SM
+
     wb = Workbook()
     ws = wb.active
     ws.title = "Invoice"
@@ -99,7 +106,6 @@ def build_strongminds():
     MID   = "2F5496"   # mid blue
     LIGHT = "D6E4F7"   # pale blue
     WHITE = "FFFFFF"
-    GOLD  = "F2C94C"
     GRAY  = "F2F2F2"
     # ── Row 1-2: header bar ──
     ws.merge_cells("A1:F2")
@@ -110,34 +116,34 @@ def build_strongminds():
     # ── Row 3-7: two-column info block ──
     row_height(ws, 3, 18)
     ws.merge_cells("B3:C3")
-    set_cell(ws, 3, 2, MY_NAME, bold=True, size=12)
+    set_cell(ws, 3, 2, my_name, bold=True, size=12)
     ws.merge_cells("E3:F3")
     set_cell(ws, 3, 5, "Invoice Number:", bold=True, align="right")
     ws.merge_cells("E4:F4")
-    set_cell(ws, 4, 5, SM["invoice_number"], bold=True, size=12, color=MID, align="right")
+    set_cell(ws, 4, 5, sm["invoice_number"], bold=True, size=12, color=MID, align="right")
     ws.merge_cells("B4:C4")
-    set_cell(ws, 4, 2, MY_ADDRESS)
+    set_cell(ws, 4, 2, my_address)
     ws.merge_cells("B5:C5")
-    set_cell(ws, 5, 2, MY_EMAIL)
+    set_cell(ws, 5, 2, my_email)
     row_height(ws, 6, 5)
     ws.merge_cells("B7:C7")
     set_cell(ws, 7, 2, "Bill To:", bold=True, size=10, color="888888")
     ws.merge_cells("E7:F7")
     set_cell(ws, 7, 5, "Date:", bold=True, align="right")
     ws.merge_cells("B8:C9")
-    set_cell(ws, 8, 2, SM["bill_to"], wrap=True, valign="top")
+    set_cell(ws, 8, 2, sm["bill_to"], wrap=True, valign="top")
     row_height(ws, 8, 30)
     ws.merge_cells("E8:F8")
-    set_cell(ws, 8, 5, SM["date"], align="right")
+    set_cell(ws, 8, 5, sm["date"], align="right")
     ws.merge_cells("E9:F9")
-    set_cell(ws, 9, 5, SM["due"], align="right", color="888888", size=9)
+    set_cell(ws, 9, 5, sm["due"], align="right", color="888888", size=9)
     # Contact
     ws.merge_cells("B10:C10")
-    set_cell(ws, 10, 2, f"Contact: {SM['contact']}", size=9, color="666666")
+    set_cell(ws, 10, 2, f"Contact: {sm['contact']}", size=9, color="666666")
     # PO
-    if SM["po_number"]:
+    if sm["po_number"]:
         ws.merge_cells("E10:F10")
-        set_cell(ws, 10, 5, f"PO #: {SM['po_number']}", align="right", size=9)
+        set_cell(ws, 10, 5, f"PO #: {sm['po_number']}", align="right", size=9)
     row_height(ws, 11, 8)
     # ── Table header ──
     headers = ["", "DESCRIPTION", "QTY", "UNIT PRICE", "AMOUNT", ""]
@@ -148,9 +154,9 @@ def build_strongminds():
     row_height(ws, 12, 20)
     # ── Line items ──
     r = 13
-    currency = SM["currency"]
+    currency = sm["currency"]
     fmt = '"$"#,##0.00'
-    for desc, qty, price in SM["items"]:
+    for desc, qty, price in sm["items"]:
         row_height(ws, r, 22)
         bg = WHITE if (r % 2 == 1) else GRAY
         set_cell(ws, r, 1, "", bg=bg)
@@ -162,7 +168,7 @@ def build_strongminds():
         set_cell(ws, r, 6, "", bg=bg)
         r += 1
     # Filler rows to pad table
-    for _ in range(max(0, 6 - len(SM["items"]))):
+    for _ in range(max(0, 6 - len(sm["items"]))):
         for c in range(1, 7):
             set_cell(ws, r, c, "", bg=GRAY if r%2==0 else WHITE)
         row_height(ws, r, 18)
@@ -190,12 +196,12 @@ def build_strongminds():
     set_cell(ws, r, 6, "", bg=DARK)
     row_height(ws, r, 26); r += 2
     # ── Notes ──
-    if SM["notes"]:
+    if sm["notes"]:
         ws.merge_cells(f"B{r}:F{r}")
         set_cell(ws, r, 2, "Notes", bold=True, size=9, color="888888")
         r += 1
         ws.merge_cells(f"B{r}:F{r+1}")
-        set_cell(ws, r, 2, SM["notes"], size=9, color="444444",
+        set_cell(ws, r, 2, sm["notes"], size=9, color="444444",
                  wrap=True, valign="top")
         r += 3
     # ── Bank / payment details ──
@@ -204,7 +210,7 @@ def build_strongminds():
              bg=LIGHT)
     set_cell(ws, r, 1, "", bg=LIGHT)
     r += 1
-    lines = BANK_DETAILS.split("\n")
+    lines = bank_details.split("\n")
     for line in lines:
         ws.merge_cells(f"B{r}:F{r}")
         set_cell(ws, r, 2, line, size=9, bg=LIGHT)
@@ -214,14 +220,22 @@ def build_strongminds():
     ws.print_area = f"A1:F{r}"
     ws.page_setup.fitToWidth = 1
     ws.page_setup.orientation = "portrait"
-    filename = f"Invoice_StrongMinds_{SM['invoice_number']}.xlsx"
+    import os
+    filename = os.path.join(output_dir, f"Invoice_StrongMinds_{sm['invoice_number']}.xlsx")
     wb.save(filename)
     print(f"✅  Saved: {filename}")
     return filename
 # ─────────────────────────────────────────────
 # Audere Time Report
 # ─────────────────────────────────────────────
-def build_audere():
+def build_audere(my_name=None, my_address=None, my_email=None,
+                 bank_details=None, au_data=None, output_dir="."):
+    my_name      = my_name      or MY_NAME
+    my_address   = my_address   or MY_ADDRESS
+    my_email     = my_email     or MY_EMAIL
+    bank_details = bank_details or BANK_DETAILS
+    au           = au_data      or AU
+
     wb = Workbook()
     ws = wb.active
     ws.title = "Time Reporting"
@@ -250,20 +264,19 @@ def build_audere():
     row_height(ws, 2, 24)
     row_height(ws, 3, 6)
     # ── Info rows ──
-    yrow(ws, 4, "Name",            MY_NAME)
-    yrow(ws, 5, "Mailing Address", MY_ADDRESS, h=22)
-    yrow(ws, 6, "Email Address",   MY_EMAIL)
+    yrow(ws, 4, "Name",            my_name)
+    yrow(ws, 5, "Mailing Address", my_address, h=22)
+    yrow(ws, 6, "Email Address",   my_email)
     # Date period row — multi-column
     row_height(ws, 7, 20)
     ws.merge_cells("B7:C7")
     set_cell(ws, 7, 2, "Date Period", bold=True, size=10)
-    set_cell(ws, 7, 4, AU["date_period_start"], bg=YELLOW, size=10)
-    set_cell(ws, 7, 5, AU["date_period_end"],   bg=YELLOW, size=10)
+    set_cell(ws, 7, 4, au["date_period_start"], bg=YELLOW, size=10)
+    set_cell(ws, 7, 5, au["date_period_end"],   bg=YELLOW, size=10)
     ws.merge_cells(f"F7:G7")
-    set_cell(ws, 7, 6, AU["period_note"], bg=YELLOW, size=9, wrap=True)
+    set_cell(ws, 7, 6, au["period_note"], bg=YELLOW, size=9, wrap=True)
     row_height(ws, 8, 8)
     # ── Table header ──
-    # Manual header row
     r = 9
     row_height(ws, r, 20)
     for col, (label, al) in enumerate([
@@ -276,7 +289,7 @@ def build_audere():
     r += 1
     fmt_usd = '"$"#,##0.00'
     fmt_hrs = '0'
-    for program, hours, rate in AU["rows"]:
+    for program, hours, rate in au["rows"]:
         row_height(ws, r, 18)
         set_cell(ws, r, 1, "", border=all_border())  # Date
         set_cell(ws, r, 2, "", border=all_border())  # Activity
@@ -319,7 +332,7 @@ def build_audere():
              bold=True, size=10, bg=YELLOW)
     set_cell(ws, r, 1, "", bg=YELLOW)
     r += 1
-    for line in BANK_DETAILS.split("\n"):
+    for line in bank_details.split("\n"):
         ws.merge_cells(f"B{r}:G{r}")
         set_cell(ws, r, 2, line, size=9, bg=YELLOW)
         set_cell(ws, r, 1, "", bg=YELLOW)
@@ -328,8 +341,9 @@ def build_audere():
     ws.print_area = f"A1:G{r}"
     ws.page_setup.fitToWidth = 1
     ws.page_setup.orientation = "portrait"
-    period = AU["date_period_end"].replace("/", "-")
-    filename = f"Audere_TimeReport_{period}.xlsx"
+    import os
+    period = au["date_period_end"].replace("/", "-")
+    filename = os.path.join(output_dir, f"Audere_TimeReport_{period}.xlsx")
     wb.save(filename)
     print(f"✅  Saved: {filename}")
     return filename
