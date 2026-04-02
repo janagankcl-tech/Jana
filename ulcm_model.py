@@ -2,8 +2,6 @@
 # ULCM FULL SYSTEM MODEL (HCD + PHASE DATA)
 # =========================================
 
-import numpy as np
-
 
 class ULCMModel:
 
