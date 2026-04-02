@@ -117,9 +117,9 @@ def ulcm():
 
 def open_browser():
     path = os.environ.get("OPEN_PATH", "/")
-    webbrowser.open(f"http://localhost:5000{path}")
+    webbrowser.open(f"http://localhost:5001{path}")
 
 
 if __name__ == "__main__":
     threading.Timer(1.0, open_browser).start()
-    app.run(debug=False, port=5000)
+    app.run(debug=False, port=5001)
