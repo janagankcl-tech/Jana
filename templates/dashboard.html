@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ULCM Scaling Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
+
+  /* ── Header ── */
+  .header { background: #1F3864; color: white; padding: 20px 32px;
+            display: flex; align-items: center; gap: 12px; }
+  .header h1 { font-size: 1.4rem; font-weight: 600; }
+  .header span { opacity: 0.6; font-size: 0.9rem; }
+  .nav-bar { display: flex; align-items: center; gap: 0; padding: 0 32px;
+             background: #1F3864; }
+  .nav-link { padding: 10px 28px; background: none; border: none;
+              color: rgba(255,255,255,0.65); font-size: 0.95rem; cursor: pointer;
+              border-bottom: 3px solid transparent; transition: all 0.15s;
+              text-decoration: none; display: inline-block; }
+  .nav-link:hover { color: white; }
+  .nav-link.active { color: white; border-bottom-color: #F2C94C; }
+
+  /* ── Cards ── */
+  .card { background: white; border-radius: 10px;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+          margin-bottom: 20px; overflow: hidden; }
+  .card-header { background: #f7f8fa; padding: 14px 20px;
+                 border-bottom: 1px solid #e8eaed; font-weight: 600;
+                 font-size: 0.9rem; color: #555; text-transform: uppercase;
+                 letter-spacing: 0.05em; }
+  .card-body { padding: 20px; }
+
+  /* ── Inputs ── */
+  label { display: block; font-size: 0.8rem; font-weight: 600; color: #555;
+          margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+  input[type="number"], input[type="range"] {
+    border-radius: 6px; font-size: 0.9rem; color: #1a1a2e;
+    transition: border-color 0.15s; }
+  input[type="number"] {
+    width: 72px; padding: 5px 8px; border: 1px solid #d0d5dd; }
+  input[type="number"]:focus {
+    outline: none; border-color: #2F5496;
+    box-shadow: 0 0 0 3px rgba(47,84,150,0.1); }
+  input[type="number"].wide { width: 100%; }
+  input[type="range"] { flex: 1; accent-color: #2F5496; cursor: pointer; }
+
+  /* ── Layout ── */
+  .dash-layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 24px;
+    max-width: 1440px;
+    margin: 24px auto;
+    padding: 0 16px;
+    align-items: start;
+  }
+
+  /* ── Sidebar parameters ── */
+  .param-section-title {
+    font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: #2F5496; margin: 16px 0 10px;
+    padding-bottom: 5px; border-bottom: 1px solid #e8eaed; }
+  .param-section-title:first-child { margin-top: 0; }
+  .param-row { margin-bottom: 12px; }
+  .param-row label { margin-bottom: 5px; }
+  .param-control { display: flex; align-items: center; gap: 8px; }
+
+  /* ── Sessions toggle buttons ── */
+  .sessions-group { display: flex; gap: 6px; margin-top: 2px; }
+  .sess-btn {
+    flex: 1; padding: 6px 0; background: white; border: 1px solid #d0d5dd;
+    border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+    color: #555; transition: all 0.15s; }
+  .sess-btn:hover { border-color: #2F5496; color: #2F5496; }
+  .sess-btn.active { background: #2F5496; border-color: #2F5496; color: white; }
+
+  /* ── Reset button ── */
+  .reset-btn {
+    display: block; width: 100%; padding: 9px; margin-top: 16px;
+    background: none; border: 1px dashed #2F5496; color: #2F5496;
+    border-radius: 6px; font-size: 0.85rem; cursor: pointer;
+    transition: all 0.15s; }
+  .reset-btn:hover { background: #f0f4ff; }
+
+  /* ── KPI metric cards ── */
+  .metrics-row {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 16px; margin-bottom: 20px; }
+  .metric-card {
+    background: white; border-radius: 10px; padding: 18px 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    border-top: 4px solid #2F5496; }
+  .metric-card.accent { border-top-color: #F2C94C; }
+  .metric-value { font-size: 1.9rem; font-weight: 700; color: #1F3864;
+                  line-height: 1.1; }
+  .metric-label { font-size: 0.75rem; color: #888; text-transform: uppercase;
+                  letter-spacing: 0.05em; margin-top: 5px; }
+
+  /* ── Scenario charts ── */
+  .scenarios-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+  /* ── Loading overlay ── */
+  .charts-area { transition: opacity 0.2s; }
+  .charts-area.loading { opacity: 0.55; pointer-events: none; }
+
+  /* ── Responsive ── */
+  @media (max-width: 960px) {
+    .dash-layout { grid-template-columns: 1fr; }
+    .metrics-row { grid-template-columns: repeat(2, 1fr); }
+    .scenarios-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>ULCM Scaling Dashboard</h1>
+  <span>Integrated Scaling Model</span>
+</div>
+<nav class="nav-bar">
+  <a href="/" class="nav-link">Invoice Generator</a>
+  <a href="/dashboard" class="nav-link active">Scaling Dashboard</a>
+</nav>
+
+<div class="dash-layout">
+
+  <!-- ═══════════════════════════════════════════
+       SIDEBAR: Parameter Controls
+  ═══════════════════════════════════════════ -->
+  <aside>
+    <div class="card">
+      <div class="card-header">Model Parameters</div>
+      <div class="card-body">
+
+        <!-- Demand -->
+        <div class="param-section-title">Demand Funnel</div>
+
+        <div class="param-row">
+          <label>Population</label>
+          <input type="number" id="num-population" class="wide"
+                 min="100" max="10000000" step="100" value="10000">
+        </div>
+
+        <div class="param-row">
+          <label>Reach Rate</label>
+          <div class="param-control">
+            <input type="range" id="slider-reach_rate" min="0.01" max="1" step="0.01" value="0.6">
+            <input type="number" id="num-reach_rate" min="0.01" max="1" step="0.01" value="0.6">
+          </div>
+        </div>
+
+        <div class="param-row">
+          <label>Sign-up Rate</label>
+          <div class="param-control">
+            <input type="range" id="slider-signup_rate" min="0.01" max="1" step="0.01" value="0.7">
+            <input type="number" id="num-signup_rate" min="0.01" max="1" step="0.01" value="0.7">
+          </div>
+        </div>
+
+        <div class="param-row">
+          <label>Attendance Rate</label>
+          <div class="param-control">
+            <input type="range" id="slider-attendance_rate" min="0.01" max="1" step="0.01" value="0.8">
+            <input type="number" id="num-attendance_rate" min="0.01" max="1" step="0.01" value="0.8">
+          </div>
+        </div>
+
+        <div class="param-row">
+          <label>Demand Multiplier</label>
+          <div class="param-control">
+            <input type="range" id="slider-demand_multiplier" min="0.1" max="3" step="0.1" value="1">
+            <input type="number" id="num-demand_multiplier" min="0.1" max="3" step="0.1" value="1">
+          </div>
+        </div>
+
+        <!-- Engagement -->
+        <div class="param-section-title">Engagement</div>
+
+        <div class="param-row">
+          <label>Dropout Rate</label>
+          <div class="param-control">
+            <input type="range" id="slider-dropout_rate" min="0" max="0.9" step="0.01" value="0.15">
+            <input type="number" id="num-dropout_rate" min="0" max="0.9" step="0.01" value="0.15">
+          </div>
+        </div>
+
+        <!-- Clinical -->
+        <div class="param-section-title">Clinical Design</div>
+
+        <div class="param-row">
+          <label>Sessions per Participant</label>
+          <div class="sessions-group">
+            <button class="sess-btn" data-val="1">1</button>
+            <button class="sess-btn active" data-val="2">2</button>
+            <button class="sess-btn" data-val="4">4</button>
+            <button class="sess-btn" data-val="6">6</button>
+          </div>
+        </div>
+
+        <div class="param-row">
+          <label>Ingredient Effect</label>
+          <div class="param-control">
+            <input type="range" id="slider-ingredient_effect" min="0.5" max="2" step="0.05" value="1.15">
+            <input type="number" id="num-ingredient_effect" min="0.5" max="2" step="0.05" value="1.15">
+          </div>
+        </div>
+
+        <!-- Step-care -->
+        <div class="param-section-title">Step-Care</div>
+
+        <div class="param-row">
+          <label>Step-Up Rate</label>
+          <div class="param-control">
+            <input type="range" id="slider-step_up_rate" min="0" max="1" step="0.01" value="0.3">
+            <input type="number" id="num-step_up_rate" min="0" max="1" step="0.01" value="0.3">
+          </div>
+        </div>
+
+        <div class="param-row">
+          <label>Step Effect (remission uplift)</label>
+          <div class="param-control">
+            <input type="range" id="slider-step_effect" min="0" max="1" step="0.01" value="0.25">
+            <input type="number" id="num-step_effect" min="0" max="1" step="0.01" value="0.25">
+          </div>
+        </div>
+
+        <!-- Workforce -->
+        <div class="param-section-title">Workforce</div>
+
+        <div class="param-row">
+          <label>Sessions per Hour</label>
+          <div class="param-control">
+            <input type="range" id="slider-sessions_per_hour" min="0.5" max="6" step="0.5" value="2">
+            <input type="number" id="num-sessions_per_hour" min="0.5" max="6" step="0.5" value="2">
+          </div>
+        </div>
+
+        <div class="param-row">
+          <label>Hours per Worker / Year</label>
+          <input type="number" id="num-hours_per_worker_per_year" class="wide"
+                 min="100" max="4000" step="50" value="1200">
+        </div>
+
+        <!-- Costs -->
+        <div class="param-section-title">Costs</div>
+
+        <div class="param-row">
+          <label>Cost per Worker ($)</label>
+          <input type="number" id="num-cost_per_worker" class="wide"
+                 min="100" max="50000" step="100" value="1500">
+        </div>
+
+        <div class="param-row">
+          <label>SMS Cost per User ($)</label>
+          <div class="param-control">
+            <input type="range" id="slider-sms_cost_per_user" min="0" max="5" step="0.1" value="0.5">
+            <input type="number" id="num-sms_cost_per_user" min="0" max="5" step="0.1" value="0.5">
+          </div>
+        </div>
+
+        <div class="param-row">
+          <label>Integration Factor</label>
+          <div class="param-control">
+            <input type="range" id="slider-integration_factor" min="0.5" max="2" step="0.1" value="1">
+            <input type="number" id="num-integration_factor" min="0.5" max="2" step="0.1" value="1">
+          </div>
+        </div>
+
+        <button class="reset-btn" id="btn-reset">Reset to defaults</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══════════════════════════════════════════
+       MAIN: KPIs + Charts
+  ═══════════════════════════════════════════ -->
+  <main>
+    <div class="charts-area" id="charts-area">
+
+      <!-- KPI Cards -->
+      <div class="metrics-row">
+        <div class="metric-card">
+          <div class="metric-value" id="kpi-remitted">—</div>
+          <div class="metric-label">Total Remitted</div>
+        </div>
+        <div class="metric-card accent">
+          <div class="metric-value" id="kpi-remission-rate">—</div>
+          <div class="metric-label">Population Remission Rate</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="kpi-cost-per-remission">—</div>
+          <div class="metric-label">Cost per Remission</div>
+        </div>
+        <div class="metric-card accent">
+          <div class="metric-value" id="kpi-workers">—</div>
+          <div class="metric-label">Workers Needed</div>
+        </div>
+      </div>
+
+      <!-- Patient Funnel -->
+      <div class="card">
+        <div class="card-header">Patient Funnel</div>
+        <div class="card-body" style="height:220px; position:relative;">
+          <canvas id="chart-funnel"></canvas>
+        </div>
+      </div>
+
+      <!-- Scenario charts -->
+      <div class="scenarios-row">
+        <div class="card">
+          <div class="card-header">Sessions vs Outcomes</div>
+          <div class="card-body" style="height:280px; position:relative;">
+            <canvas id="chart-sessions"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">Reach Rate vs Remitted</div>
+          <div class="card-body" style="height:280px; position:relative;">
+            <canvas id="chart-reach"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /charts-area -->
+  </main>
+</div><!-- /dash-layout -->
+
+<script>
+// ─────────────────────────────────────────────
+// 1. State — mirrors Params defaults
+// ─────────────────────────────────────────────
+const DEFAULTS = {
+  population: 10000,
+  reach_rate: 0.6,
+  signup_rate: 0.7,
+  attendance_rate: 0.8,
+  demand_multiplier: 1.0,
+  dropout_rate: 0.15,
+  sessions: 2,
+  ingredient_effect: 1.15,
+  step_up_rate: 0.3,
+  step_effect: 0.25,
+  sessions_per_hour: 2.0,
+  hours_per_worker_per_year: 1200,
+  cost_per_worker: 1500,
+  sms_cost_per_user: 0.5,
+  integration_factor: 1.0,
+};
+const state = Object.assign({}, DEFAULTS);
+
+// ─────────────────────────────────────────────
+// 2. Chart initialisation
+// ─────────────────────────────────────────────
+const BLUE   = '#2F5496';
+const NAVY   = '#1F3864';
+const YELLOW = '#F2C94C';
+const LIGHT  = 'rgba(47,84,150,0.12)';
+const STAGES = ['Population', 'Entered', 'Retained', 'Remitted'];
+
+const funnelChart = new Chart(document.getElementById('chart-funnel'), {
+  type: 'bar',
+  data: {
+    labels: STAGES,
+    datasets: [{
+      label: 'People',
+      data: [0, 0, 0, 0],
+      backgroundColor: ['#D6E4F7', BLUE, NAVY, YELLOW],
+      borderRadius: 4,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { beginAtZero: true,
+           ticks: { callback: v => v.toLocaleString() } },
+      y: { ticks: { font: { size: 12 } } }
+    }
+  }
+});
+
+const sessionsChart = new Chart(document.getElementById('chart-sessions'), {
+  type: 'bar',
+  data: {
+    labels: [1, 2, 4, 6],
+    datasets: [
+      {
+        type: 'bar',
+        label: 'Total Remitted',
+        data: [0, 0, 0, 0],
+        backgroundColor: BLUE,
+        yAxisID: 'y',
+        borderRadius: 3,
+      },
+      {
+        type: 'line',
+        label: 'Cost / Remission ($)',
+        data: [0, 0, 0, 0],
+        borderColor: YELLOW,
+        backgroundColor: 'transparent',
+        pointBackgroundColor: YELLOW,
+        yAxisID: 'y1',
+        tension: 0.3,
+        borderWidth: 2,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { position: 'top', labels: { boxWidth: 12 } } },
+    scales: {
+      y:  { position: 'left',
+            title: { display: true, text: 'People Remitted' } },
+      y1: { position: 'right',
+            title: { display: true, text: 'Cost / Remission ($)' },
+            grid: { drawOnChartArea: false } }
+    }
+  }
+});
+
+const reachChart = new Chart(document.getElementById('chart-reach'), {
+  type: 'line',
+  data: {
+    labels: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+    datasets: [{
+      label: 'Total Remitted',
+      data: new Array(10).fill(0),
+      borderColor: NAVY,
+      backgroundColor: LIGHT,
+      fill: true,
+      tension: 0.4,
+      pointRadius: 3,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { title: { display: true, text: 'Reach Rate' } },
+      y: { title: { display: true, text: 'People Remitted' },
+           beginAtZero: true }
+    }
+  }
+});
+
+// ─────────────────────────────────────────────
+// 3. KPI updaters
+// ─────────────────────────────────────────────
+function fmt(n, decimals = 0) {
+  return Number(n).toLocaleString(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+
+function updateKPIs(r) {
+  document.getElementById('kpi-remitted').textContent          = fmt(r.remitted);
+  document.getElementById('kpi-remission-rate').textContent    = (r.remission_rate * 100).toFixed(1) + '%';
+  document.getElementById('kpi-cost-per-remission').textContent = '$' + fmt(r.cost_per_remission, 2);
+  document.getElementById('kpi-workers').textContent           = fmt(r.workers, 1);
+}
+
+function updateFunnelChart(r) {
+  funnelChart.data.datasets[0].data = [r.population, r.entered, r.retained, r.remitted];
+  funnelChart.update('active');
+}
+
+function updateSessionsChart(sc) {
+  sessionsChart.data.datasets[0].data = sc.remitted;
+  sessionsChart.data.datasets[1].data = sc.cost_per_remission;
+  sessionsChart.update('active');
+}
+
+function updateReachChart(sc) {
+  reachChart.data.datasets[0].data = sc.remitted;
+  reachChart.update('active');
+}
+
+// ─────────────────────────────────────────────
+// 4. API calls
+// ─────────────────────────────────────────────
+async function runUpdate() {
+  const chartsArea = document.getElementById('charts-area');
+  chartsArea.classList.add('loading');
+
+  try {
+    const [runRes, scenRes] = await Promise.all([
+      fetch('/api/ulcm/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(state),
+      }).then(r => r.json()),
+      fetch('/api/ulcm/scenarios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          base_params: state,
+          sweeps: {
+            sessions: [1, 2, 4, 6],
+            reach_rate: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+          }
+        }),
+      }).then(r => r.json()),
+    ]);
+
+    if (runRes.ok) {
+      updateKPIs(runRes.results);
+      updateFunnelChart(runRes.results);
+    }
+    if (scenRes.ok) {
+      updateSessionsChart(scenRes.scenarios.sessions);
+      updateReachChart(scenRes.scenarios.reach_rate);
+    }
+  } catch (err) {
+    console.error('Dashboard update error:', err);
+  } finally {
+    chartsArea.classList.remove('loading');
+  }
+}
+
+let debounceTimer = null;
+function scheduleUpdate() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(runUpdate, 300);
+}
+
+// ─────────────────────────────────────────────
+// 5. Wire parameter controls
+// ─────────────────────────────────────────────
+function bindSliderParam(name) {
+  const slider = document.getElementById('slider-' + name);
+  const num    = document.getElementById('num-' + name);
+  if (!slider || !num) return;
+
+  slider.addEventListener('input', () => {
+    num.value  = slider.value;
+    state[name] = parseFloat(slider.value);
+    scheduleUpdate();
+  });
+  num.addEventListener('change', () => {
+    const v = parseFloat(num.value);
+    if (!isNaN(v)) {
+      slider.value = v;
+      state[name]  = v;
+      scheduleUpdate();
+    }
+  });
+}
+
+function bindNumberParam(name) {
+  const num = document.getElementById('num-' + name);
+  if (!num) return;
+  num.addEventListener('change', () => {
+    const v = parseFloat(num.value);
+    if (!isNaN(v)) {
+      state[name] = (Number.isInteger(DEFAULTS[name])) ? Math.round(v) : v;
+      scheduleUpdate();
+    }
+  });
+}
+
+// Slider params
+['reach_rate', 'signup_rate', 'attendance_rate', 'demand_multiplier',
+ 'dropout_rate', 'ingredient_effect', 'step_up_rate', 'step_effect',
+ 'sessions_per_hour', 'sms_cost_per_user', 'integration_factor'].forEach(bindSliderParam);
+
+// Number-only params
+['population', 'hours_per_worker_per_year', 'cost_per_worker'].forEach(bindNumberParam);
+
+// Sessions toggle buttons
+document.querySelectorAll('.sess-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.sess-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.sessions = parseInt(btn.dataset.val, 10);
+    scheduleUpdate();
+  });
+});
+
+// Reset button
+document.getElementById('btn-reset').addEventListener('click', () => {
+  Object.assign(state, DEFAULTS);
+
+  // Reset slider+number pairs
+  ['reach_rate', 'signup_rate', 'attendance_rate', 'demand_multiplier',
+   'dropout_rate', 'ingredient_effect', 'step_up_rate', 'step_effect',
+   'sessions_per_hour', 'sms_cost_per_user', 'integration_factor'].forEach(name => {
+    const slider = document.getElementById('slider-' + name);
+    const num    = document.getElementById('num-' + name);
+    if (slider) slider.value = DEFAULTS[name];
+    if (num)    num.value    = DEFAULTS[name];
+  });
+
+  // Reset number-only
+  ['population', 'hours_per_worker_per_year', 'cost_per_worker'].forEach(name => {
+    const num = document.getElementById('num-' + name);
+    if (num) num.value = DEFAULTS[name];
+  });
+
+  // Reset sessions buttons
+  document.querySelectorAll('.sess-btn').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.val, 10) === DEFAULTS.sessions);
+  });
+
+  scheduleUpdate();
+});
+
+// ─────────────────────────────────────────────
+// 6. Initial load
+// ─────────────────────────────────────────────
+runUpdate();
+</script>
+</body>
+</html>

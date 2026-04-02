@@ -7,11 +7,12 @@ import os
 import tempfile
 import threading
 import webbrowser
-from flask import Flask, render_template, request, send_file
+from flask import Flask, jsonify, render_template, request, send_file
 from invoice_generator import (
     build_strongminds, build_audere,
     MY_NAME, MY_ADDRESS, MY_EMAIL, BANK_DETAILS, SM, AU
 )
+from ulcm_model import ULCMModel, run_scenarios, params_from_dict
 
 app = Flask(__name__)
 
@@ -107,6 +108,36 @@ def generate_audere():
     )
     filename = os.path.basename(path)
     return send_file(path, as_attachment=True, download_name=filename)
+
+
+@app.route("/dashboard")
+def dashboard():
+    return render_template("dashboard.html")
+
+
+@app.route("/api/ulcm/run", methods=["POST"])
+def ulcm_run():
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        params = params_from_dict(data)
+        results = ULCMModel(params).run()
+        return jsonify({"ok": True, "results": results})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+
+
+@app.route("/api/ulcm/scenarios", methods=["POST"])
+def ulcm_scenarios():
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        base = params_from_dict(data.get("base_params", {}))
+        out = {}
+        for param_name, values in data.get("sweeps", {}).items():
+            df = run_scenarios(base, param_name, values)
+            out[param_name] = df.to_dict(orient="list")
+        return jsonify({"ok": True, "scenarios": out})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
 
 
 def open_browser():
