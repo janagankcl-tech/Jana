@@ -116,7 +116,8 @@ def ulcm():
 
 
 def open_browser():
-    webbrowser.open("http://localhost:5000")
+    path = os.environ.get("OPEN_PATH", "/")
+    webbrowser.open(f"http://localhost:5000{path}")
 
 
 if __name__ == "__main__":
