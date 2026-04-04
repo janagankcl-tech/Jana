@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ULCM Cost Model</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+       background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
+
+/* ── Header ── */
+.header { background: #1F3864; color: white; padding: 16px 28px;
+          display: flex; align-items: center; gap: 12px; }
+.header h1 { font-size: 1.3rem; font-weight: 700; }
+.header-sub { opacity: 0.6; font-size: 0.85rem; }
+.back-link { margin-left: auto; color: rgba(255,255,255,0.8); font-size: 0.85rem;
+             text-decoration: none; border: 1px solid rgba(255,255,255,0.3);
+             padding: 5px 12px; border-radius: 6px; transition: all 0.15s; white-space: nowrap; }
+.back-link:hover { color: white; border-color: rgba(255,255,255,0.7);
+                   background: rgba(255,255,255,0.08); }
+
+/* ── Main layout ── */
+.dashboard { display: flex; gap: 0; min-height: calc(100vh - 57px); }
+
+/* ── Left panel ── */
+.sidebar { width: 320px; min-width: 280px; background: white;
+           border-right: 1px solid #e4e7ec; overflow-y: auto;
+           padding-bottom: 32px; }
+.sidebar-section { padding: 16px 18px 4px; }
+.sidebar-section-title {
+  font-size: 0.72rem; font-weight: 700; color: #2F5496;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  padding: 10px 18px 6px; margin-top: 4px;
+  border-top: 1px solid #eef0f4; background: #f7f9fc; }
+.sidebar-section-title:first-child { border-top: none; margin-top: 0; }
+
+/* ── Parameter row ── */
+.param-row { margin-bottom: 14px; }
+.param-label { display: flex; justify-content: space-between; align-items: baseline;
+               margin-bottom: 5px; }
+.param-label span:first-child { font-size: 0.8rem; font-weight: 600; color: #444; }
+.param-value { font-size: 0.82rem; font-weight: 700; color: #2F5496;
+               min-width: 50px; text-align: right; }
+.param-slider { width: 100%; height: 4px; accent-color: #2F5496; cursor: pointer; }
+.param-note { font-size: 0.72rem; color: #999; margin-top: 3px; }
+
+/* Ingredient select */
+.param-select { width: 100%; padding: 7px 10px; border: 1px solid #d0d5dd;
+                border-radius: 6px; font-size: 0.88rem; color: #1a1a2e;
+                background: white; cursor: pointer; }
+.param-select:focus { outline: none; border-color: #2F5496;
+                      box-shadow: 0 0 0 3px rgba(47,84,150,0.1); }
+
+/* Severity warning */
+.severity-warning { display: none; font-size: 0.72rem; color: #e07b00;
+                    background: #fff8ee; border: 1px solid #ffd580;
+                    border-radius: 4px; padding: 4px 8px; margin-top: 6px; }
+.severity-warning.visible { display: block; }
+
+/* Removed cost section */
+.removed-cost { background: #f8f9fa; border: 1px solid #e4e7ec;
+                border-radius: 6px; padding: 10px 12px; margin-top: 4px; }
+.removed-cost-label { font-size: 0.72rem; color: #999; text-transform: uppercase;
+                      letter-spacing: 0.05em; margin-bottom: 4px; }
+.removed-cost-saving { font-size: 0.85rem; color: #2e7d32; font-weight: 600; }
+.removed-cost-saving span { font-size: 0.72rem; color: #888; font-weight: 400; }
+
+/* ── Right panel ── */
+.main { flex: 1; padding: 20px 24px 32px; overflow-y: auto; min-width: 0; }
+
+/* ── Metric cards ── */
+.cards-grid { display: grid; grid-template-columns: repeat(4, 1fr);
+              gap: 12px; margin-bottom: 20px; }
+.metric-card { background: white; border-radius: 10px;
+               box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+               padding: 14px 16px; border-top: 3px solid #ccc; }
+.metric-card.blue  { border-top-color: #2F5496; }
+.metric-card.green { border-top-color: #2e7d32; }
+.metric-card.orange{ border-top-color: #e07b00; }
+.metric-card.purple{ border-top-color: #7b1fa2; }
+.metric-card-label { font-size: 0.72rem; font-weight: 600; color: #888;
+                     text-transform: uppercase; letter-spacing: 0.05em;
+                     margin-bottom: 6px; }
+.metric-card-value { font-size: 1.5rem; font-weight: 700; color: #1a1a2e;
+                     line-height: 1.1; }
+.metric-card-sub   { font-size: 0.75rem; color: #aaa; margin-top: 3px; }
+
+/* ── Chart cards ── */
+.chart-card { background: white; border-radius: 10px;
+              box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+              padding: 16px 18px; margin-bottom: 16px; }
+.chart-title { font-size: 0.82rem; font-weight: 700; color: #555;
+               text-transform: uppercase; letter-spacing: 0.05em;
+               margin-bottom: 14px; }
+.charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.chart-canvas-wrap { position: relative; }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .dashboard { flex-direction: column; }
+  .sidebar { width: 100%; border-right: none; border-bottom: 1px solid #e4e7ec; }
+  .cards-grid { grid-template-columns: repeat(2, 1fr); }
+  .charts-row { grid-template-columns: 1fr; }
+}
+@media (max-width: 500px) {
+  .cards-grid { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>ULCM Cost Model</h1>
+    <div class="header-sub">Ultra Low Cost Mental Health Intervention — HCD + Phase Data</div>
+  </div>
+  <a href="/" class="back-link">&#8592; Invoice Generator</a>
+</div>
+
+<div class="dashboard">
+
+  <!-- ════════════════════════════════════
+       LEFT SIDEBAR — Parameters
+       ════════════════════════════════════ -->
+  <aside class="sidebar">
+
+    <!-- Population -->
+    <div class="sidebar-section-title">Population</div>
+    <div class="sidebar-section">
+      <div class="param-row">
+        <div class="param-label">
+          <span>Population size</span>
+          <span class="param-value" id="val-population">10,000</span>
+        </div>
+        <input type="range" class="param-slider" id="sl-population"
+               min="1000" max="200000" step="1000" value="10000">
+      </div>
+    </div>
+
+    <!-- HCD Entry -->
+    <div class="sidebar-section-title">HCD Entry</div>
+    <div class="sidebar-section">
+      <div class="param-row">
+        <div class="param-label">
+          <span>Reach rate</span>
+          <span class="param-value" id="val-reach_rate">60%</span>
+        </div>
+        <input type="range" class="param-slider" id="sl-reach_rate"
+               min="0.1" max="1.0" step="0.01" value="0.6">
+        <div class="param-note">% of population community outreach reaches</div>
+      </div>
+      <div class="param-row">
+        <div class="param-label">
+          <span>Sign-up rate</span>
+          <span class="param-value" id="val-signup_rate">70%</span>
+        </div>
+        <input type="range" class="param-slider" id="sl-signup_rate"
+               min="0.1" max="1.0" step="0.01" value="0.7">
+        <div class="param-note">% of reached who enrol (no screening barrier)</div>
+      </div>
+      <div class="param-row">
+        <div class="param-label">
+          <span>Attendance rate</span>
+          <span class="param-value" id="val-attendance_rate">75%</span>
+        </div>
+        <input type="range" class="param-slider" id="sl-attendance_rate"
+               min="0.1" max="1.0" step="0.01" value="0.75">
+        <div class="param-note">% of enrolled who attend session 1</div>
+      </div>
+    </div>
+
+    <!-- Engagement -->
+    <div class="sidebar-section-title">Engagement</div>
+    <div class="sidebar-section">
+      <div class="param-row">
+        <div class="param-label">
+          <span>Dropout rate</span>
+          <span class="param-value" id="val-dropout_rate">25%</span>
+        </div>
+        <input type="range" class="param-slider" id="sl-dropout_rate"
+               min="0.0" max="0.8" step="0.01" value="0.25">
+        <div class="param-note">SMS engagement reduces this</div>
+      </div>
+    </div>
+
+    <!-- Clinical Design -->
+    <div class="sidebar-section-title">Clinical Design</div>
+    <div class="sidebar-section">
+      <div class="param-row">
+        <div class="param-label"><span>Active ingredient</span></div>
+        <select class="param-select" id="sl-ingredient">
+          <option value="problem_solving" selected>Problem solving (×1.15)</option>
+          <option value="psychoeducation">Psychoeducation (×1.20)</option>
+          <option value="peer_support">Peer support (×0.80)</option>
+        </select>
+      </div>
+      <div class="param-row">
+        <div class="param-label">
+          <span>First-line sessions</span>
+          <span class="param-value" id="val-sessions">1</span>
+        </div>
+        <input type="range" class="param-slider" id="sl-sessions"
+               min="1" max="8" step="1" value="1">
+        <div class="param-note">SSI = 1 session; diminishing returns after 4</div>
+      </div>
+      <div class="param-row">
+        <div class="param-label">
+          <span>Base remission rate</span>
+          <span class="param-value" id="val-base_remission">35%</span>
+        </div>
+        <input type="range" class="param-slider" id="sl-base_remission"
+               min="0.05" max="0.7" step="0.01" value="0.35">
+      </div>
+    </div>
+
+    <!-- Step Care -->
+    <div class="sidebar-section-title">Step Care</div>
+    <div class="sidebar-section">
+      <div class="param-row">
+        <div class="param-label">
+          <span>Step-up rate</span>
+          <span class="param-value" id="val-step_up_rate">40%</span>
+        </div>
+        <input type="range" class="param-slider" id="sl-step_up_rate"
+               min="0.0" max="1.0" step="0.05" value="0.4">
+        <div class="param-note">% of non-responders escalated to IPT-G</div>
+      </div>
+      <div class="param-row">
+        <div class="param-label">
+          <span>Step-care sessions</span>
+          <span class="param-value" id="val-step_sessions">6</span>
+        </div>
+        <input type="range" class="param-slider" id="sl-step_sessions"
+               min="1" max="12" step="1" value="6">
+      </div>
+      <div class="param-row">
+        <div class="param-label">
+          <span>Step remission rate</span>
+          <span class="param-value" id="val-step_remission">60%</span>
+        </div>
+        <input type="range" class="param-slider" id="sl-step_remission"
+               min="0.1" max="0.9" step="0.01" value="0.6">
+      </div>
+    </div>
+
+    <!-- Severity Split -->
+    <div class="sidebar-section-title">Severity Split</div>
+    <div class="sidebar-section">
+      <div class="param-row">
+        <div class="param-label">
+          <span>Mild</span>
+          <span class="param-value" id="val-mild_share">50%</span>
+        </div>
+        <input type="range" class="param-slider" id="sl-mild_share"
+               min="0.0" max="1.0" step="0.05" value="0.5"
+               oninput="normaliseSeverity('mild_share')">
+      </div>
+      <div class="param-row">
+        <div class="param-label">
+          <span>Moderate</span>
+          <span class="param-value" id="val-moderate_share">30%</span>
+        </div>
+        <input type="range" class="param-slider" id="sl-moderate_share"
+               min="0.0" max="1.0" step="0.05" value="0.3"
+               oninput="normaliseSeverity('moderate_share')">
+      </div>
+      <div class="param-row">
+        <div class="param-label">
+          <span>Severe</span>
+          <span class="param-value" id="val-severe_share">20%</span>
+        </div>
+        <input type="range" class="param-slider" id="sl-severe_share"
+               min="0.0" max="1.0" step="0.05" value="0.2"
+               oninput="normaliseSeverity('severe_share')">
+      </div>
+      <div class="severity-warning" id="severity-warning">
+        Shares adjusted to sum to 100%
+      </div>
+    </div>
+
+    <!-- Workforce -->
+    <div class="sidebar-section-title">Workforce</div>
+    <div class="sidebar-section">
+      <div class="param-row">
+        <div class="param-label">
+          <span>Hours / week per worker</span>
+          <span class="param-value" id="val-hours_per_week">20</span>
+        </div>
+        <input type="range" class="param-slider" id="sl-hours_per_week"
+               min="4" max="40" step="1" value="20">
+      </div>
+      <div class="param-row">
+        <div class="param-label">
+          <span>Working weeks / year</span>
+          <span class="param-value" id="val-weeks_per_year">48</span>
+        </div>
+        <input type="range" class="param-slider" id="sl-weeks_per_year"
+               min="20" max="52" step="1" value="48">
+      </div>
+      <div class="param-row">
+        <div class="param-label">
+          <span>Sessions / hour</span>
+          <span class="param-value" id="val-sessions_per_hour">2</span>
+        </div>
+        <input type="range" class="param-slider" id="sl-sessions_per_hour"
+               min="0.5" max="4" step="0.5" value="2">
+      </div>
+    </div>
+
+    <!-- Costs -->
+    <div class="sidebar-section-title">Costs</div>
+    <div class="sidebar-section">
+      <div class="param-row">
+        <div class="param-label">
+          <span>Annual cost / worker</span>
+          <span class="param-value" id="val-cost_per_worker">$1,200</span>
+        </div>
+        <input type="range" class="param-slider" id="sl-cost_per_worker"
+               min="200" max="5000" step="50" value="1200">
+      </div>
+      <div class="param-row">
+        <div class="param-label">
+          <span>Supervision cost / worker</span>
+          <span class="param-value" id="val-supervision_cost">$200</span>
+        </div>
+        <input type="range" class="param-slider" id="sl-supervision_cost"
+               min="0" max="1000" step="25" value="200">
+      </div>
+      <div class="param-row">
+        <div class="param-label">
+          <span>SMS cost / user</span>
+          <span class="param-value" id="val-sms_cost_per_user">$0.05</span>
+        </div>
+        <input type="range" class="param-slider" id="sl-sms_cost_per_user"
+               min="0" max="2.0" step="0.01" value="0.05">
+      </div>
+
+      <div class="removed-cost">
+        <div class="removed-cost-label">Removed cost (screening eliminated)</div>
+        <div class="param-label" style="margin-bottom:5px">
+          <span style="font-size:0.8rem;font-weight:600;color:#999">Screening cost / user</span>
+          <span class="param-value" id="val-screening_cost_per_user" style="color:#999">$1.00</span>
+        </div>
+        <input type="range" class="param-slider" id="sl-screening_cost_per_user"
+               min="0" max="5.0" step="0.05" value="1.0"
+               style="accent-color:#aaa">
+        <div class="removed-cost-saving" id="screening-saving">
+          Saving: $10,000 <span>vs screening-based model</span>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ════════════════════════════════════
+       RIGHT MAIN PANEL
+       ════════════════════════════════════ -->
+  <main class="main">
+
+    <!-- Metric Cards -->
+    <div class="cards-grid">
+      <div class="metric-card blue">
+        <div class="metric-card-label">Entered System</div>
+        <div class="metric-card-value" id="card-entered">—</div>
+        <div class="metric-card-sub">attended session 1</div>
+      </div>
+      <div class="metric-card blue">
+        <div class="metric-card-label">Retained</div>
+        <div class="metric-card-value" id="card-retained">—</div>
+        <div class="metric-card-sub">completed programme</div>
+      </div>
+      <div class="metric-card green">
+        <div class="metric-card-label">Total Remitted</div>
+        <div class="metric-card-value" id="card-remitted">—</div>
+        <div class="metric-card-sub">first-line + step-care</div>
+      </div>
+      <div class="metric-card green">
+        <div class="metric-card-label">Remission Rate</div>
+        <div class="metric-card-value" id="card-remission-rate">—</div>
+        <div class="metric-card-sub">% of population</div>
+      </div>
+      <div class="metric-card orange">
+        <div class="metric-card-label">Cost per Remission</div>
+        <div class="metric-card-value" id="card-cost-per-remission">—</div>
+        <div class="metric-card-sub">total cost / remitted</div>
+      </div>
+      <div class="metric-card orange">
+        <div class="metric-card-label">Cost per User</div>
+        <div class="metric-card-value" id="card-cost-per-user">—</div>
+        <div class="metric-card-sub">total cost / population</div>
+      </div>
+      <div class="metric-card purple">
+        <div class="metric-card-label">Workers Needed</div>
+        <div class="metric-card-value" id="card-workers">—</div>
+        <div class="metric-card-sub">lay workers (FTE equiv.)</div>
+      </div>
+      <div class="metric-card orange">
+        <div class="metric-card-label">Total Programme Cost</div>
+        <div class="metric-card-value" id="card-total-cost">—</div>
+        <div class="metric-card-sub">worker + supervision + SMS</div>
+      </div>
+    </div>
+
+    <!-- Patient Flow -->
+    <div class="chart-card">
+      <div class="chart-title">Patient Flow Funnel</div>
+      <div class="chart-canvas-wrap" style="height:200px">
+        <canvas id="chart-flow"></canvas>
+      </div>
+    </div>
+
+    <!-- Cost Breakdown + Sessions Sensitivity -->
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">Cost Breakdown</div>
+        <div class="chart-canvas-wrap" style="height:220px">
+          <canvas id="chart-cost"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Sessions vs Cost per Remission</div>
+        <div class="chart-canvas-wrap" style="height:220px">
+          <canvas id="chart-sensitivity"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Triage Split -->
+    <div class="chart-card">
+      <div class="chart-title">Severity Split of Retained Population</div>
+      <div class="chart-canvas-wrap" style="height:100px">
+        <canvas id="chart-triage"></canvas>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ════════════════════════════════════════════
+// SIMULATION (JS port of Python ULCMModel)
+// ════════════════════════════════════════════
+
+function doseEffect(sessions) {
+  if (sessions === 1) return 0.75;
+  if (sessions === 2) return 0.90;
+  if (sessions <= 4)  return 1.0;
+  return 1.05;
+}
+
+function ingredientEffect(ingredient) {
+  return { psychoeducation: 1.2, problem_solving: 1.15, peer_support: 0.8 }[ingredient] || 1.0;
+}
+
+function ulcmSimulate(p) {
+  // 1. Entry (HCD)
+  const reached    = p.population   * p.reach_rate;
+  const signup     = reached        * p.signup_rate;
+  const session1   = signup         * p.attendance_rate;
+
+  // 2. Engagement
+  const retained   = session1 * (1 - p.dropout_rate);
+
+  // 3. Triage
+  const mild       = retained * p.mild_share;
+  const moderate   = retained * p.moderate_share;
+  const severe     = retained * p.severe_share;
+
+  // 4. First-line (SSI)
+  const remission_first = retained * p.base_remission
+                          * doseEffect(p.sessions)
+                          * ingredientEffect(p.ingredient);
+
+  // 5. Step care
+  const non_responders  = retained - remission_first;
+  const escalated       = non_responders * p.step_up_rate;
+  const remission_step  = escalated * p.step_remission;
+  const total_remitted  = remission_first + remission_step;
+
+  // 6. Workforce
+  const total_sessions      = retained * p.sessions + escalated * p.step_sessions;
+  const sessions_per_worker = p.hours_per_week * p.weeks_per_year * p.sessions_per_hour;
+  const workers_needed      = total_sessions / sessions_per_worker;
+
+  // 7. Cost
+  const worker_cost     = workers_needed * p.cost_per_worker;
+  const supervision_cost= workers_needed * p.supervision_cost;
+  const sms_cost        = p.population   * p.sms_cost_per_user;
+  const screening_saving= p.population   * p.screening_cost_per_user;
+  const total_cost      = worker_cost + supervision_cost + sms_cost;
+
+  return {
+    population:          p.population,
+    reached,
+    signup,
+    entered_system:      session1,
+    retained,
+    mild, moderate, severe,
+    remitted:            total_remitted,
+    remission_rate:      total_remitted / p.population,
+    workers_needed,
+    worker_cost,
+    supervision_cost,
+    sms_cost,
+    screening_saving,
+    total_cost,
+    cost_per_user:       total_cost / p.population,
+    cost_per_remission:  total_cost / Math.max(total_remitted, 1)
+  };
+}
+
+// ════════════════════════════════════════════
+// READ PARAMS FROM SLIDERS
+// ════════════════════════════════════════════
+
+function readParams() {
+  return {
+    population:              +document.getElementById('sl-population').value,
+    reach_rate:              +document.getElementById('sl-reach_rate').value,
+    signup_rate:             +document.getElementById('sl-signup_rate').value,
+    attendance_rate:         +document.getElementById('sl-attendance_rate').value,
+    dropout_rate:            +document.getElementById('sl-dropout_rate').value,
+    base_remission:          +document.getElementById('sl-base_remission').value,
+    step_remission:          +document.getElementById('sl-step_remission').value,
+    sessions:                +document.getElementById('sl-sessions').value,
+    step_sessions:           +document.getElementById('sl-step_sessions').value,
+    step_up_rate:            +document.getElementById('sl-step_up_rate').value,
+    mild_share:              +document.getElementById('sl-mild_share').value,
+    moderate_share:          +document.getElementById('sl-moderate_share').value,
+    severe_share:            +document.getElementById('sl-severe_share').value,
+    hours_per_week:          +document.getElementById('sl-hours_per_week').value,
+    weeks_per_year:          +document.getElementById('sl-weeks_per_year').value,
+    sessions_per_hour:       +document.getElementById('sl-sessions_per_hour').value,
+    cost_per_worker:         +document.getElementById('sl-cost_per_worker').value,
+    supervision_cost:        +document.getElementById('sl-supervision_cost').value,
+    sms_cost_per_user:       +document.getElementById('sl-sms_cost_per_user').value,
+    screening_cost_per_user: +document.getElementById('sl-screening_cost_per_user').value,
+    ingredient:              document.getElementById('sl-ingredient').value,
+  };
+}
+
+// ════════════════════════════════════════════
+// FORMAT HELPERS
+// ════════════════════════════════════════════
+
+function fmt(n) {
+  if (n >= 1e6) return '$' + (n/1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return '$' + (n/1e3).toFixed(1) + 'K';
+  return '$' + n.toFixed(2);
+}
+function fmtN(n) {
+  return Math.round(n).toLocaleString();
+}
+function fmtPct(n) {
+  return (n * 100).toFixed(1) + '%';
+}
+function fmtDollar(n) {
+  if (n >= 1e6) return '$' + (n/1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return '$' + (n/1e3).toFixed(1) + 'K';
+  return '$' + n.toFixed(2);
+}
+
+// ════════════════════════════════════════════
+// UPDATE LABELS
+// ════════════════════════════════════════════
+
+function updateLabel(id, val) {
+  const el = document.getElementById('val-' + id);
+  if (!el) return;
+  const pct_params = ['reach_rate','signup_rate','attendance_rate','dropout_rate',
+                      'base_remission','step_remission','step_up_rate',
+                      'mild_share','moderate_share','severe_share'];
+  const dollar_params = ['cost_per_worker','supervision_cost',
+                          'sms_cost_per_user','screening_cost_per_user'];
+  if (pct_params.includes(id)) {
+    el.textContent = Math.round(val * 100) + '%';
+  } else if (dollar_params.includes(id)) {
+    el.textContent = val < 10 ? '$' + parseFloat(val).toFixed(2) : '$' + Math.round(val).toLocaleString();
+  } else {
+    el.textContent = parseFloat(val).toLocaleString();
+  }
+}
+
+// ════════════════════════════════════════════
+// SEVERITY NORMALISATION
+// ════════════════════════════════════════════
+
+function normaliseSeverity(changed) {
+  const ids  = ['mild_share', 'moderate_share', 'severe_share'];
+  const vals = ids.map(id => +document.getElementById('sl-' + id).value);
+  const sum  = vals.reduce((a, b) => a + b, 0);
+
+  const warn = document.getElementById('severity-warning');
+
+  if (Math.abs(sum - 1.0) > 0.001) {
+    // Scale the two others proportionally
+    const changedIdx = ids.indexOf(changed);
+    const changedVal = vals[changedIdx];
+    const remain     = 1.0 - changedVal;
+    const othersSum  = vals.reduce((a, v, i) => i === changedIdx ? a : a + v, 0);
+
+    ids.forEach((id, i) => {
+      if (i === changedIdx) return;
+      let newVal = othersSum > 0 ? (vals[i] / othersSum) * remain : remain / 2;
+      newVal = Math.max(0, Math.min(1, Math.round(newVal * 20) / 20)); // snap to 0.05
+      document.getElementById('sl-' + id).value = newVal;
+      updateLabel(id, newVal);
+    });
+
+    warn.classList.add('visible');
+    setTimeout(() => warn.classList.remove('visible'), 2000);
+  }
+
+  ids.forEach((id, i) => updateLabel(id, +document.getElementById('sl-' + id).value));
+  ulcmUpdate();
+}
+
+// ════════════════════════════════════════════
+// UPDATE METRIC CARDS
+// ════════════════════════════════════════════
+
+function updateCards(r, p) {
+  document.getElementById('card-entered').textContent         = fmtN(r.entered_system);
+  document.getElementById('card-retained').textContent        = fmtN(r.retained);
+  document.getElementById('card-remitted').textContent        = fmtN(r.remitted);
+  document.getElementById('card-remission-rate').textContent  = fmtPct(r.remission_rate);
+  document.getElementById('card-cost-per-remission').textContent = fmtDollar(r.cost_per_remission);
+  document.getElementById('card-cost-per-user').textContent   = fmtDollar(r.cost_per_user);
+  document.getElementById('card-workers').textContent         = r.workers_needed.toFixed(1);
+  document.getElementById('card-total-cost').textContent      = fmtDollar(r.total_cost);
+  document.getElementById('screening-saving').innerHTML =
+    'Saving: ' + fmtDollar(r.screening_saving) + ' <span>vs screening-based model</span>';
+}
+
+// ════════════════════════════════════════════
+// CHARTS
+// ════════════════════════════════════════════
+
+let flowChart, costChart, sensitivityChart, triageChart;
+
+const BLUE   = '#2F5496';
+const GREEN  = '#2e7d32';
+const ORANGE = '#e07b00';
+const PURPLE = '#7b1fa2';
+const GREY   = '#b0b8c5';
+
+function initCharts() {
+  // 1. Patient Flow — horizontal bar
+  flowChart = new Chart(document.getElementById('chart-flow'), {
+    type: 'bar',
+    data: {
+      labels: ['Population', 'Reached', 'Signed up', 'Session 1', 'Retained', 'Remitted'],
+      datasets: [{
+        data: [],
+        backgroundColor: [GREY, '#4a7bc4', '#4a7bc4', BLUE, BLUE, GREEN],
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { callback: v => fmtN(v) }, grid: { color: '#f0f2f5' } },
+        y: { ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+
+  // 2. Cost Breakdown — doughnut
+  costChart = new Chart(document.getElementById('chart-cost'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Worker cost', 'Supervision', 'SMS cost', 'Screening saving (removed)'],
+      datasets: [{
+        data: [],
+        backgroundColor: [BLUE, '#6b93cc', '#a8c4e8', GREY],
+        borderWidth: 2,
+        borderColor: '#fff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const val = ctx.parsed;
+              const total = ctx.dataset.data.slice(0,3).reduce((a,b)=>a+b,0);
+              const pct = total > 0 ? (val / total * 100).toFixed(1) : 0;
+              return ` ${fmtDollar(val)} (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // 3. Sessions sensitivity — line
+  sensitivityChart = new Chart(document.getElementById('chart-sensitivity'), {
+    type: 'line',
+    data: {
+      labels: [1,2,3,4,5,6,7,8],
+      datasets: [{
+        label: 'Cost per Remission ($)',
+        data: [],
+        borderColor: ORANGE,
+        backgroundColor: 'rgba(224,123,0,0.1)',
+        pointBackgroundColor: ORANGE,
+        pointRadius: 5,
+        tension: 0.3,
+        fill: true,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { title: { display: true, text: 'First-line sessions', font: { size: 11 } } },
+        y: {
+          title: { display: true, text: 'Cost per Remission ($)', font: { size: 11 } },
+          ticks: { callback: v => '$' + v.toFixed(0) }
+        }
+      }
+    }
+  });
+
+  // 4. Triage split — horizontal stacked bar
+  triageChart = new Chart(document.getElementById('chart-triage'), {
+    type: 'bar',
+    data: {
+      labels: ['Retained population'],
+      datasets: [
+        { label: 'Mild',     data: [], backgroundColor: '#81c784', borderRadius: 0 },
+        { label: 'Moderate', data: [], backgroundColor: ORANGE,    borderRadius: 0 },
+        { label: 'Severe',   data: [], backgroundColor: '#c62828', borderRadius: 0 },
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10 } } },
+      scales: {
+        x: { stacked: true, ticks: { callback: v => fmtN(v) }, grid: { color: '#f0f2f5' } },
+        y: { stacked: true }
+      }
+    }
+  });
+}
+
+function updateFlowChart(r) {
+  flowChart.data.datasets[0].data = [
+    r.population, r.reached, r.signup,
+    r.entered_system, r.retained, r.remitted
+  ];
+  flowChart.update('none');
+}
+
+function updateCostChart(r) {
+  costChart.data.datasets[0].data = [
+    r.worker_cost, r.supervision_cost, r.sms_cost, r.screening_saving
+  ];
+  costChart.update('none');
+}
+
+function updateSensitivityChart(p) {
+  const vals = [1,2,3,4,5,6,7,8].map(s => {
+    const pp = Object.assign({}, p, { sessions: s });
+    return ulcmSimulate(pp).cost_per_remission;
+  });
+  sensitivityChart.data.datasets[0].data = vals;
+  // Highlight current sessions point
+  const cur = p.sessions;
+  sensitivityChart.data.datasets[0].pointBackgroundColor =
+    [1,2,3,4,5,6,7,8].map(s => s === cur ? '#c0390b' : ORANGE);
+  sensitivityChart.data.datasets[0].pointRadius =
+    [1,2,3,4,5,6,7,8].map(s => s === cur ? 8 : 4);
+  sensitivityChart.update('none');
+}
+
+function updateTriageChart(r) {
+  triageChart.data.datasets[0].data = [r.mild];
+  triageChart.data.datasets[1].data = [r.moderate];
+  triageChart.data.datasets[2].data = [r.severe];
+  triageChart.update('none');
+}
+
+// ════════════════════════════════════════════
+// MAIN UPDATE
+// ════════════════════════════════════════════
+
+function ulcmUpdate() {
+  const p = readParams();
+  const r = ulcmSimulate(p);
+  updateCards(r, p);
+  updateFlowChart(r);
+  updateCostChart(r);
+  updateSensitivityChart(p);
+  updateTriageChart(r);
+}
+
+// ════════════════════════════════════════════
+// WIRE UP ALL SLIDERS (except severity — handled separately)
+// ════════════════════════════════════════════
+
+const SLIDER_IDS = [
+  'population','reach_rate','signup_rate','attendance_rate','dropout_rate',
+  'base_remission','step_remission','sessions','step_sessions','step_up_rate',
+  'hours_per_week','weeks_per_year','sessions_per_hour',
+  'cost_per_worker','supervision_cost','sms_cost_per_user','screening_cost_per_user'
+];
+
+SLIDER_IDS.forEach(id => {
+  const el = document.getElementById('sl-' + id);
+  if (!el) return;
+  el.addEventListener('input', () => {
+    updateLabel(id, el.value);
+    ulcmUpdate();
+  });
+});
+
+document.getElementById('sl-ingredient').addEventListener('change', ulcmUpdate);
+
+// ════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', () => {
+  initCharts();
+  // Set initial labels
+  SLIDER_IDS.forEach(id => {
+    const el = document.getElementById('sl-' + id);
+    if (el) updateLabel(id, el.value);
+  });
+  ['mild_share','moderate_share','severe_share'].forEach(id => {
+    const el = document.getElementById('sl-' + id);
+    if (el) updateLabel(id, el.value);
+  });
+  ulcmUpdate();
+});
+</script>
+</body>
+</html>

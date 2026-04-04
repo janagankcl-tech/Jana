@@ -12,6 +12,7 @@ from invoice_generator import (
     build_strongminds, build_audere,
     MY_NAME, MY_ADDRESS, MY_EMAIL, BANK_DETAILS, SM, AU
 )
+from ulcm_model import default_params as ULCM_DEFAULTS
 
 app = Flask(__name__)
 
@@ -109,10 +110,16 @@ def generate_audere():
     return send_file(path, as_attachment=True, download_name=filename)
 
 
+@app.route("/ulcm")
+def ulcm():
+    return render_template("ulcm.html")
+
+
 def open_browser():
-    webbrowser.open("http://localhost:5000")
+    path = os.environ.get("OPEN_PATH", "/")
+    webbrowser.open(f"http://localhost:5001{path}")
 
 
 if __name__ == "__main__":
     threading.Timer(1.0, open_browser).start()
-    app.run(debug=False, port=5000)
+    app.run(debug=False, port=5001)

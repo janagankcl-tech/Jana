@@ -12,6 +12,10 @@
             display: flex; align-items: center; gap: 12px; }
   .header h1 { font-size: 1.4rem; font-weight: 600; }
   .header span { opacity: 0.6; font-size: 0.9rem; }
+  .header-link { margin-left: auto; color: rgba(255,255,255,0.8); font-size: 0.88rem;
+                 text-decoration: none; border: 1px solid rgba(255,255,255,0.3);
+                 padding: 6px 14px; border-radius: 6px; transition: all 0.15s; }
+  .header-link:hover { color: white; border-color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.08); }
   .tabs { display: flex; gap: 0; padding: 0 32px; background: #1F3864; }
   .tab-btn { padding: 10px 28px; background: none; border: none; color: rgba(255,255,255,0.65);
              font-size: 0.95rem; cursor: pointer; border-bottom: 3px solid transparent;
@@ -72,6 +76,7 @@
 <div class="header">
   <h1>Invoice Generator</h1>
   <span>Fill in the form and click Generate to download your Excel file</span>
+  <a href="/ulcm" class="header-link">ULCM Dashboard</a>
 </div>
 <div class="tabs">
   <button class="tab-btn active" onclick="switchTab('sm')">StrongMinds Invoice</button>
